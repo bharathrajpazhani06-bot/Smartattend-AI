@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartAttend AI - Student Attendance Tracker</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={darkMode:'class',theme:{extend:{colors:{brand:{500:'#3b82f6',600:'#2563eb',700:'#1d4ed8'}}}}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}body{font-family:Inter,system-ui,-apple-system,sans-serif}
+.page{display:none}.page.active{display:block}.navActive{background:#eff6ff;color:#2563eb}
+.dark .navActive{background:#172554;color:#60a5fa}
+.card{border:1px solid #e5e7eb;box-shadow:0 5px 18px rgba(15,23,42,.05)}
+.dark .card{border-color:#1e293b;box-shadow:none}
+.progress{height:8px;border-radius:99px;background:#e5e7eb;overflow:hidden}.dark .progress{background:#334155}
+.progress span{display:block;height:100%;border-radius:99px}
+.modal{display:none}.modal.show{display:flex}
+.toast{transform:translateY(120px);opacity:0;transition:.3s}.toast.show{transform:translateY(0);opacity:1}
+.sidebar{transition:.25s}
+table{width:100%;border-collapse:collapse}th,td{padding:13px 12px;text-align:left;border-bottom:1px solid #e5e7eb;font-size:13px}
+.dark th,.dark td{border-color:#1e293b}
+.badge{padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700}
+input,select{outline:none}
+</style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100">
+<div id="toast" class="toast fixed bottom-5 right-5 z-[100] bg-slate-900 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-semibold"></div>
+
+<div class="min-h-screen flex">
+<aside id="sidebar" class="sidebar fixed lg:static z-50 inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 -translate-x-full lg:translate-x-0">
+ <div class="h-full flex flex-col">
+  <div class="p-5 flex items-center gap-3">
+   <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-800 text-white grid place-items-center font-black">SA</div>
+   <div><div class="font-extrabold">SmartAttend</div><div class="text-xs text-slate-500">AI Attendance Tracker</div></div>
+  </div>
+  <nav class="px-3 space-y-1">
+   <button data-page="dashboard" class="nav navActive w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">🏠 Dashboard</button>
+   <button data-page="students" class="nav w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">👨‍🎓 Students</button>
+   <button data-page="subjects" class="nav w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">📚 Subjects</button>
+   <button data-page="mark" class="nav w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">✅ Mark Attendance</button>
+   <button data-page="history" class="nav w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">📅 Attendance History</button>
+   <button data-page="analytics" class="nav w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">🤖 Smart Analytics</button>
+   <button data-page="report" class="nav w-full text-left px-4 py-3 rounded-xl font-semibold text-sm">📄 Attendance Report</button>
+  </nav>
+  <div class="mt-auto p-4">
+   <div class="rounded-2xl bg-blue-50 dark:bg-blue-950/40 p-4">
+    <div class="text-xs font-bold text-blue-700 dark:text-blue-300">SMART FEATURE</div>
+    <p class="text-xs text-slate-600 dark:text-slate-300 mt-2">Predict shortage and show a recovery plan before attendance becomes critical.</p>
+   </div>
+  </div>
+ </div>
+</aside>
+
+<main class="flex-1 min-w-0">
+<header class="sticky top-0 z-40 h-16 bg-white/90 dark:bg-slate-950/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sm:px-6">
+ <div class="flex items-center gap-3">
+  <button id="menuBtn" class="lg:hidden text-xl">☰</button>
+  <div><div id="pageTitle" class="font-bold">Dashboard</div><div class="text-xs text-slate-500">Student Attendance Management</div></div>
+ </div>
+ <div class="flex items-center gap-3">
+  <button id="themeBtn" class="w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700">🌙</button>
+  <div class="hidden sm:block text-right"><b class="text-sm">Faculty</b><div class="text-xs text-slate-500">Admin Panel</div></div>
+  <div class="w-10 h-10 rounded-full bg-blue-600 text-white grid place-items-center font-bold">F</div>
+ </div>
+</header>
+
+<div class="p-4 sm:p-6 max-w-7xl mx-auto">
+
+<!-- DASHBOARD -->
+<section id="dashboard" class="page active">
+ <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+  <div><h1 class="text-2xl sm:text-3xl font-extrabold">Student Attendance Tracker</h1><p class="text-slate-500 mt-1">Record, monitor and analyze attendance digitally.</p></div>
+  <div>
+   <label class="text-xs font-semibold text-slate-500 block mb-1">Filter dashboard by subject</label>
+   <select id="dashboardSubjectSelect" onchange="renderDashboard()" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800 text-sm w-full sm:w-56"></select>
+  </div>
+ </div>
+ <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5"><div class="text-sm text-slate-500">Total Students</div><div id="statStudents" class="text-3xl font-extrabold mt-2">0</div><div class="text-xs text-slate-500 mt-2">Registered students</div></div>
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5"><div id="statPresentLabel" class="text-sm text-slate-500">Present Today</div><div id="statPresent" class="text-3xl font-extrabold mt-2 text-emerald-600">0</div><div class="text-xs text-slate-500 mt-2">Today's attendance</div></div>
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5"><div id="statAbsentLabel" class="text-sm text-slate-500">Absent Today</div><div id="statAbsent" class="text-3xl font-extrabold mt-2 text-red-500">0</div><div class="text-xs text-slate-500 mt-2">Needs follow-up</div></div>
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5"><div id="statAverageLabel" class="text-sm text-slate-500">Average Attendance</div><div id="statAverage" class="text-3xl font-extrabold mt-2">0%</div><div id="statAverageSub" class="text-xs text-blue-600 font-semibold mt-2">Class average</div></div>
+ </div>
+
+ <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5 mb-6">
+  <h2 class="font-bold mb-4">Subject-wise Attendance %</h2>
+  <div id="subjectStats" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+  <div class="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
+   <h3 id="subjectListTitle" class="font-bold text-sm mb-4">Who's Present / Absent — pick a subject above</h3>
+   <div id="dashboardSubjectList"></div>
+  </div>
+ </div>
+
+ <div class="grid lg:grid-cols-3 gap-6">
+  <div class="card lg:col-span-2 bg-white dark:bg-slate-900 rounded-2xl p-5">
+   <div class="flex justify-between items-center mb-4"><div><h2 class="font-bold">Attendance Overview</h2><p class="text-xs text-slate-500">Current student percentages</p></div><button onclick="go('mark')" class="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold">Mark Attendance</button></div>
+   <canvas id="attendanceChart" height="130"></canvas>
+  </div>
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5">
+   <h2 class="font-bold">AI Smart Alert 🤖</h2>
+   <div id="dashboardAlert" class="mt-4 p-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 text-sm"></div>
+   <button onclick="go('analytics')" class="mt-4 w-full py-3 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-sm">View Analytics</button>
+  </div>
+ </div>
+</section>
+
+<!-- STUDENTS -->
+<section id="students" class="page">
+ <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+  <div><h1 class="text-2xl font-extrabold">Student Details</h1><p class="text-slate-500 mt-1">Add, search and manage students.</p></div>
+  <button onclick="openStudentModal()" class="px-5 py-3 rounded-xl bg-blue-600 text-white font-bold">＋ Add Student</button>
+ </div>
+ <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5">
+  <div class="relative mb-5"><input id="studentSearch" oninput="renderStudents()" placeholder="🔎 Search by name, register number or department..." class="w-full p-3.5 pl-4 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800"></div>
+  <div class="overflow-x-auto">
+   <table><thead><tr><th>Student</th><th>Register No.</th><th>Department</th><th>Attendance</th><th>Status</th><th>Action</th></tr></thead><tbody id="studentTable"></tbody></table>
+  </div>
+ </div>
+</section>
+
+<!-- SUBJECTS -->
+<section id="subjects" class="page">
+ <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+  <div><h1 class="text-2xl font-extrabold">Subjects</h1><p class="text-slate-500 mt-1">Add or remove the subjects attendance is tracked for.</p></div>
+  <button onclick="openSubjectModal()" class="px-5 py-3 rounded-xl bg-blue-600 text-white font-bold">＋ Add Subject</button>
+ </div>
+ <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5">
+  <div class="overflow-x-auto">
+   <table><thead><tr><th>Subject</th><th>Records Saved</th><th>Action</th></tr></thead><tbody id="subjectTable"></tbody></table>
+  </div>
+ </div>
+</section>
+
+<!-- MARK -->
+<section id="mark" class="page">
+ <div class="mb-6"><h1 class="text-2xl font-extrabold">Mark Attendance</h1><p class="text-slate-500 mt-1">Select Present or Absent for each student.</p></div>
+ <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5">
+  <div class="grid sm:grid-cols-4 gap-3 mb-5">
+   <select id="markSubject" onchange="todayStatus={};renderMark()" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800"></select>
+   <input id="attendanceDate" type="date" onchange="todayStatus={};renderMark()" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+   <button id="markAllBtn" onclick="markAllPresent()" class="p-3 rounded-xl bg-emerald-600 text-white font-bold">Mark All Present</button>
+   <div id="dayInfo" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-xs flex items-center"></div>
+  </div>
+  <div class="overflow-x-auto"><table><thead><tr><th>Student</th><th>Register No.</th><th>Current %</th><th>Attendance</th></tr></thead><tbody id="markTable"></tbody></table></div>
+  <button id="saveBtn" onclick="saveAttendance()" class="mt-5 w-full sm:w-auto px-8 py-3 rounded-xl bg-blue-600 text-white font-bold">Save Today's Attendance</button>
+ </div>
+</section>
+
+<!-- HISTORY -->
+<section id="history" class="page">
+ <div class="mb-6"><h1 class="text-2xl font-extrabold">Attendance History</h1><p class="text-slate-500 mt-1">View recorded attendance sessions.</p></div>
+ <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5">
+  <div class="flex flex-wrap gap-3 mb-5">
+   <select id="historyFilter" onchange="renderHistory()" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800"><option value="all">All Students</option></select>
+   <select id="historySubject" onchange="renderHistory()" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800"><option value="all">All Subjects</option></select>
+   <select id="historyStatus" onchange="renderHistory()" class="p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800"><option value="all">All Status</option><option>Present</option><option>Absent</option></select>
+  </div>
+  <div class="overflow-x-auto"><table><thead><tr><th>Date</th><th>Student</th><th>Subject</th><th>Status</th></tr></thead><tbody id="historyTable"></tbody></table></div>
+ </div>
+</section>
+
+<!-- ANALYTICS -->
+<section id="analytics" class="page">
+ <div class="mb-6"><h1 class="text-2xl font-extrabold">Smart Analytics 🤖</h1><p class="text-slate-500 mt-1">Attendance percentage, risk detection and recovery guidance.</p></div>
+ <div class="grid lg:grid-cols-2 gap-6">
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-6">
+   <h2 class="font-bold">Student Risk Analysis</h2>
+   <div id="riskList" class="mt-5 space-y-4"></div>
+  </div>
+  <div class="card bg-white dark:bg-slate-900 rounded-2xl p-6">
+   <h2 class="font-bold">Attendance Recovery Simulator</h2>
+   <p class="text-sm text-slate-500 mt-1">How many consecutive classes are needed to reach 75%?</p>
+   <select id="recoveryStudent" onchange="calculateRecovery()" class="mt-5 w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800"></select>
+   <div id="recoveryBox" class="mt-4 p-5 rounded-2xl bg-blue-50 dark:bg-blue-950/30"></div>
+   <div class="mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 text-sm"><b>Why this matters:</b> The system warns students before attendance shortage becomes difficult to recover.</div>
+  </div>
+ </div>
+</section>
+
+<!-- REPORT -->
+<section id="report" class="page">
+ <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+  <div><h1 class="text-2xl font-extrabold">Attendance Report</h1><p class="text-slate-500 mt-1">Every student, every subject's percentage, in one place.</p></div>
+  <button onclick="exportReportExcel()" class="px-5 py-3 rounded-xl bg-emerald-600 text-white font-bold">⬇ Export to Excel</button>
+ </div>
+ <div class="card bg-white dark:bg-slate-900 rounded-2xl p-5">
+  <div class="overflow-x-auto">
+   <table><thead id="reportHead"></thead><tbody id="reportTable"></tbody></table>
+  </div>
+ </div>
+</section>
+
+</div>
+</main>
+</div>
+
+<!-- ADD STUDENT MODAL -->
+<div id="studentModal" class="modal fixed inset-0 bg-black/50 z-[80] items-center justify-center p-4">
+ <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full">
+  <div class="flex justify-between items-center"><h2 class="text-lg font-extrabold">Add Student</h2><button onclick="closeStudentModal()" class="text-xl">✕</button></div>
+  <div class="space-y-3 mt-5">
+   <input id="newName" placeholder="Student name" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+   <input id="newReg" placeholder="Register number" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+   <input id="newDept" placeholder="Department" value="B.Sc Computer Science" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+   <input id="newClasses" type="number" min="1" value="50" placeholder="Classes conducted" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+   <input id="newAttended" type="number" min="0" value="40" placeholder="Classes attended" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+  </div>
+  <button onclick="addStudent()" class="mt-5 w-full py-3 rounded-xl bg-blue-600 text-white font-bold">Add Student</button>
+ </div>
+</div>
+
+<!-- ADD SUBJECT MODAL -->
+<div id="subjectModal" class="modal fixed inset-0 bg-black/50 z-[80] items-center justify-center p-4">
+ <div class="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full">
+  <div class="flex justify-between items-center"><h2 class="text-lg font-extrabold">Add Subject</h2><button onclick="closeSubjectModal()" class="text-xl">✕</button></div>
+  <div class="space-y-3 mt-5">
+   <input id="newSubjectName" placeholder="Subject name (e.g. Operating Systems)" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+  </div>
+  <button onclick="addSubject()" class="mt-5 w-full py-3 rounded-xl bg-blue-600 text-white font-bold">Add Subject</button>
+ </div>
+</div>
+
+<script>
+const defaultStudents=[
+ {id:1,name:'Arun Kumar',reg:'23UCS001',dept:'B.Sc Computer Science',conducted:50,attended:44},
+ {id:2,name:'Bharathraj',reg:'23UCS002',dept:'B.Sc Computer Science',conducted:50,attended:39},
+ {id:3,name:'Karthik S',reg:'23UCS003',dept:'B.Sc Computer Science',conducted:50,attended:47},
+ {id:4,name:'Priya R',reg:'23UCS004',dept:'B.Sc Computer Science',conducted:50,attended:36},
+ {id:5,name:'Divya M',reg:'23UCS005',dept:'B.Sc Computer Science',conducted:50,attended:42},
+ {id:6,name:'Sanjay V',reg:'23UCS006',dept:'B.Sc Computer Science',conducted:50,attended:32}
+];
+let subjects=JSON.parse(localStorage.getItem('smartAttendSubjects')||'null')||['Java Programming','Database Management','Computer Networks','Web Technology'];
+let students=JSON.parse(localStorage.getItem('smartAttendStudents')||'null')||defaultStudents;
+let history=JSON.parse(localStorage.getItem('smartAttendHistory')||'null')||[
+ {date:'2026-09-23',subject:'Java Programming',student:1,status:'Present'},
+ {date:'2026-09-23',subject:'Java Programming',student:2,status:'Present'},
+ {date:'2026-09-23',subject:'Java Programming',student:3,status:'Present'},
+ {date:'2026-09-23',subject:'Java Programming',student:4,status:'Absent'},
+ {date:'2026-09-23',subject:'Java Programming',student:5,status:'Present'},
+ {date:'2026-09-23',subject:'Java Programming',student:6,status:'Absent'}
+];
+let todayStatus={};let chart;
+function today(){let d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+
+function save(){localStorage.setItem('smartAttendStudents',JSON.stringify(students));localStorage.setItem('smartAttendHistory',JSON.stringify(history));localStorage.setItem('smartAttendSubjects',JSON.stringify(subjects))}
+function cleanDuplicates(){
+ // one attendance record per student per day per subject: keep the latest, undo the effect of extras
+ let seen={},keep=[],removed=0;
+ for(let i=history.length-1;i>=0;i--){
+  let x=history[i],k=x.student+'|'+x.date+'|'+x.subject;
+  if(seen[k]){let s=students.find(y=>y.id===x.student);if(s){s.conducted=Math.max(0,s.conducted-1);if(x.status==='Present')s.attended=Math.max(0,s.attended-1)}removed++}
+  else{seen[k]=1;keep.push(x)}
+ }
+ if(removed){history=keep.reverse();save()}
+ return removed;
+}
+let dupCleaned=cleanDuplicates();
+function savedStatus(id,date,subject){let x=history.find(y=>y.student===id&&y.date===date&&y.subject===subject);return x?x.status:''}
+function pct(s){return s.conducted?Math.round(s.attended/s.conducted*100):0}
+function pctForSubject(s,subject){let recs=history.filter(h=>h.student===s.id&&h.subject===subject);return recs.length?Math.round(recs.filter(h=>h.status==='Present').length/recs.length*100):0}
+function getStatus(p){return p>=75?['Safe','bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400']:p>=65?['Warning','bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400']:['Critical','bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400']}
+function toast(msg){let t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+function go(id){
+ document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));
+ document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('navActive',n.dataset.page===id));
+ const names={dashboard:'Dashboard',students:'Student Details',subjects:'Subjects',mark:'Mark Attendance',history:'Attendance History',analytics:'Smart Analytics',report:'Attendance Report'};
+ document.getElementById('pageTitle').textContent=names[id];
+ document.getElementById('sidebar').classList.add('-translate-x-full');
+ if(id==='dashboard')renderDashboard();if(id==='students')renderStudents();if(id==='subjects')renderSubjects();if(id==='mark')renderMark();if(id==='history')renderHistory();if(id==='analytics')renderAnalytics();if(id==='report')renderReport();
+}
+document.querySelectorAll('.nav').forEach(n=>n.onclick=()=>go(n.dataset.page));
+document.getElementById('menuBtn').onclick=()=>document.getElementById('sidebar').classList.toggle('-translate-x-full');
+document.getElementById('themeBtn').onclick=()=>{document.documentElement.classList.toggle('dark');document.getElementById('themeBtn').textContent=document.documentElement.classList.contains('dark')?'☀️':'🌙';renderDashboard()};
+
+function renderDashboard(){
+ let dSel=document.getElementById('dashboardSubjectSelect');
+ let dPrev=dSel.value;
+ dSel.innerHTML='<option value="">All Subjects</option>'+subjects.map(sub=>`<option${sub===dPrev?' selected':''}>${sub}</option>`).join('');
+ let subject=subjects.includes(dPrev)?dPrev:'';
+ let total=students.length,present,absent,avg;
+ if(subject){
+  let recs=history.filter(h=>h.subject===subject);
+  let latestDate=recs.length?recs.reduce((max,h)=>h.date>max?h.date:max,recs[0].date):null;
+  let rows=latestDate?recs.filter(h=>h.date===latestDate):[];
+  present=rows.filter(h=>h.status==='Present').length;
+  absent=rows.filter(h=>h.status==='Absent').length;
+  let withRecords=students.filter(s=>recs.some(h=>h.student===s.id));
+  avg=withRecords.length?Math.round(withRecords.reduce((a,s)=>a+pctForSubject(s,subject),0)/withRecords.length):0;
+  document.getElementById('statPresentLabel').textContent='Present ('+subject+')';
+  document.getElementById('statAbsentLabel').textContent='Absent ('+subject+')';
+  document.getElementById('statAverageLabel').textContent=subject+' Attendance';
+  document.getElementById('statAverageSub').textContent=latestDate?'As of '+latestDate:'No sessions yet';
+ }else{
+  present=Object.values(todayStatus).filter(x=>x==='Present').length;
+  if(!present) present=history.filter(x=>x.date===today()&&x.status==='Present').length;
+  absent=Object.values(todayStatus).filter(x=>x==='Absent').length;
+  if(!absent) absent=history.filter(x=>x.date===today()&&x.status==='Absent').length;
+  avg=total?Math.round(students.reduce((a,s)=>a+pct(s),0)/total):0;
+  document.getElementById('statPresentLabel').textContent='Present Today';
+  document.getElementById('statAbsentLabel').textContent='Absent Today';
+  document.getElementById('statAverageLabel').textContent='Average Attendance';
+  document.getElementById('statAverageSub').textContent='Class average';
+ }
+ document.getElementById('statStudents').textContent=total;
+ document.getElementById('statPresent').textContent=present;
+ document.getElementById('statAbsent').textContent=absent;
+ document.getElementById('statAverage').textContent=avg+'%';
+ renderDashboardSubjectList(subject);
+ document.getElementById('subjectStats').innerHTML=subjects.map(sub=>{
+  let recs=history.filter(h=>h.subject===sub);
+  let cnt=recs.length,pres=recs.filter(h=>h.status==='Present').length;
+  let p=cnt?Math.round(pres/cnt*100):0;
+  let color=!cnt?'#94a3b8':p>=75?'#22c55e':p>=65?'#f59e0b':'#ef4444';
+  return `<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800${sub===subject?' ring-2 ring-blue-500':''}"><div class="text-xs text-slate-500">${sub}</div><div class="text-2xl font-extrabold mt-1">${cnt?p+'%':'—'}</div><div class="progress mt-3"><span style="width:${cnt?p:0}%;background:${color}"></span></div></div>`;
+ }).join('');
+ let critical=students.filter(s=>pct(s)<65),warn=students.filter(s=>pct(s)>=65&&pct(s)<75);
+ document.getElementById('dashboardAlert').innerHTML=critical.length?`<b class="text-red-600">⚠ ${critical.length} critical student(s)</b><p class="text-xs mt-2 text-slate-600 dark:text-slate-300">${critical.map(s=>s.name+' ('+pct(s)+'%)').join(', ')} need immediate attention.</p>`:warn.length?`<b class="text-amber-600">⚠ ${warn.length} student(s) need attention</b><p class="text-xs mt-2 text-slate-600 dark:text-slate-300">The system detected attendance below 75%.</p>`:`<b class="text-emerald-600">✓ Attendance is healthy</b><p class="text-xs mt-2 text-slate-600 dark:text-slate-300">No critical shortage detected.</p>`;
+ if(chart)chart.destroy();
+ let ctx=document.getElementById('attendanceChart').getContext('2d');
+ let chartData=subject?students.map(s=>pctForSubject(s,subject)):students.map(pct);
+ chart=new Chart(ctx,{type:'bar',data:{labels:students.map(s=>s.name.split(' ')[0]),datasets:[{label:(subject||'Overall')+' Attendance %',data:chartData,borderRadius:8}]},options:{plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{callback:v=>v+'%'}}}}});
+}
+function renderDashboardSubjectList(subject){
+ subject=subject!==undefined?subject:document.getElementById('dashboardSubjectSelect').value;
+ let box=document.getElementById('dashboardSubjectList');
+ let titleEl=document.getElementById('subjectListTitle');
+ if(!subject){titleEl.textContent="Who's Present / Absent — pick a subject above";box.innerHTML='<p class="text-sm text-slate-500">Select a subject from the filter at the top to see who was present or absent.</p>';return}
+ titleEl.textContent="Who's Present / Absent — "+subject;
+ let recs=history.filter(h=>h.subject===subject);
+ if(!recs.length){box.innerHTML='<p class="text-sm text-slate-500">No attendance recorded yet for '+subject+'.</p>';return}
+ let latestDate=recs.reduce((max,h)=>h.date>max?h.date:max,recs[0].date);
+ let rows=recs.filter(h=>h.date===latestDate);
+ let presentCount=rows.filter(h=>h.status==='Present').length;
+ box.innerHTML=`<div class="text-xs text-slate-500 mb-3">Latest session: <b>${latestDate}</b> · ${presentCount} present, ${rows.length-presentCount} absent</div>`+
+  `<div class="grid sm:grid-cols-2 gap-3">`+
+  rows.map(h=>{let s=students.find(x=>x.id===h.student);return `<div class="flex justify-between items-center p-3 rounded-xl bg-slate-50 dark:bg-slate-800"><span class="font-semibold text-sm">${s?s.name:'Unknown'}</span><span class="badge ${h.status==='Present'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}">${h.status}</span></div>`}).join('')+
+  `</div>`;
+}
+
+function renderStudents(){
+ let q=(document.getElementById('studentSearch').value||'').toLowerCase();
+ let list=students.filter(s=>(s.name+' '+s.reg+' '+s.dept).toLowerCase().includes(q));
+ document.getElementById('studentTable').innerHTML=list.map(s=>{
+  let p=pct(s),st=getStatus(p);
+  return `<tr><td><b>${s.name}</b></td><td>${s.reg}</td><td>${s.dept}</td><td><b>${p}%</b><div class="progress mt-2 w-28"><span style="width:${p}%;background:${p>=75?'#22c55e':p>=65?'#f59e0b':'#ef4444'}"></span></div></td><td><span class="badge ${st[1]}">${st[0]}</span></td><td><button onclick="quickView(${s.id})" class="text-blue-600 font-bold">View</button><button onclick="deleteStudent(${s.id})" class="text-red-600 font-bold ml-3">Delete</button></td></tr>`;
+ }).join('')||'<tr><td colspan="6" class="text-center text-slate-500 py-8">No students found.</td></tr>';
+}
+
+function renderMark(){
+ let di=document.getElementById('attendanceDate');
+ if(!di.value)di.value=today();
+ di.max=today();
+ let mSel=document.getElementById('markSubject');
+ let prevSubject=mSel.value;
+ mSel.innerHTML=subjects.map(sub=>`<option${sub===prevSubject?' selected':''}>${sub}</option>`).join('');
+ if(!subjects.length){
+  document.getElementById('dayInfo').innerHTML='<span class="text-red-600 font-semibold">No subjects yet. Add one from the Subjects page first.</span>';
+  document.getElementById('markTable').innerHTML='';
+  return;
+ }
+ let date=di.value,subject=mSel.value;
+ let existing=history.filter(h=>h.date===date&&h.subject===subject).length;
+ document.getElementById('dayInfo').innerHTML=existing?'<span class="text-amber-600 font-semibold">✎ '+existing+' record(s) already saved for this date &amp; subject. Saving again corrects them.</span>':'<span class="text-slate-500">Mark every student, then save.</span>';
+ document.getElementById('markTable').innerHTML=students.map(s=>{
+  let saved=savedStatus(s.id,date,subject),status=todayStatus[s.id]||saved||'';
+  return `<tr><td><b>${s.name}</b></td><td>${s.reg}</td><td>${pct(s)}%</td><td><div class="flex gap-2 items-center"><button onclick="setStatus(${s.id},'Present')" class="px-3 py-2 rounded-lg ${status==='Present'?'bg-emerald-600 text-white':'bg-emerald-50 text-emerald-700 dark:bg-emerald-950'} font-bold">✓ Present</button><button onclick="setStatus(${s.id},'Absent')" class="px-3 py-2 rounded-lg ${status==='Absent'?'bg-red-600 text-white':'bg-red-50 text-red-700 dark:bg-red-950'} font-bold">✕ Absent</button></div></td></tr>`;
+ }).join('');
+}
+function setStatus(id,status){
+ todayStatus[id]=status;renderMark()
+}
+function markAllPresent(){
+ students.forEach(s=>todayStatus[s.id]='Present');renderMark();toast('All students set to Present')
+}
+function saveAttendance(){
+ let date=document.getElementById('attendanceDate').value||today();
+ let subject=document.getElementById('markSubject').value;
+ if(!subject){toast('Add a subject first');return}
+ if(date>today()){toast('Future dates are not allowed');return}
+ if(!students.length){toast('Add students first');return}
+ let currentStatus=s=>todayStatus[s.id]||savedStatus(s.id,date,subject);
+ let left=students.filter(s=>!currentStatus(s)).length;
+ if(left){toast('Mark all students before saving ('+left+' left)');return}
+ let added=0,corrected=0;
+ students.forEach(s=>{
+  let status=currentStatus(s);
+  let rec=history.find(h=>h.student===s.id&&h.date===date&&h.subject===subject);
+  if(rec){
+   if(rec.status!==status){
+    if(rec.status==='Present'&&status==='Absent')s.attended=Math.max(0,s.attended-1);
+    if(rec.status==='Absent'&&status==='Present')s.attended++;
+    rec.status=status;corrected++;
+   }
+  }else{
+   history.push({date,subject,student:s.id,status});
+   s.conducted++;
+   if(status==='Present')s.attended++;
+   added++;
+  }
+ });
+ save();todayStatus={};renderDashboard();renderMark();renderHistory();renderStudents();renderAnalytics();
+ let parts=[];if(added)parts.push(added+' new record(s) saved');if(corrected)parts.push(corrected+' record(s) corrected');
+ toast(parts.length?parts.join(', '):'No changes to save');
+}
+
+function renderHistory(){
+ let f=document.getElementById('historyFilter');f.innerHTML='<option value="all">All Students</option>'+students.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+ let selected=f.dataset.keep||'all';f.value=selected;
+ let subjSel=document.getElementById('historySubject');
+ let subjPrev=subjSel.value||'all';
+ subjSel.innerHTML='<option value="all">All Subjects</option>'+subjects.map(sub=>`<option${sub===subjPrev?' selected':''}>${sub}</option>`).join('');
+ let subjectFilter=subjects.includes(subjPrev)?subjPrev:'all';
+ let statusFilter=document.getElementById('historyStatus').value;
+ let rows=history.filter(h=>(selected==='all'||String(h.student)===selected)&&(subjectFilter==='all'||h.subject===subjectFilter)&&(statusFilter==='all'||h.status===statusFilter)).slice().reverse();
+ document.getElementById('historyTable').innerHTML=rows.map(h=>{let s=students.find(x=>x.id===h.student);return `<tr><td>${h.date}</td><td><b>${s?s.name:'Unknown'}</b></td><td>${h.subject||'-'}</td><td><span class="badge ${h.status==='Present'?'bg-emerald-100 text-emerald-700':'bg-red-100 text-red-700'}">${h.status}</span></td></tr>`}).join('')||'<tr><td colspan="4" class="text-center text-slate-500 py-8">No attendance history.</td></tr>';
+ f.onchange=()=>{f.dataset.keep=f.value;renderHistory()};
+}
+
+function renderAnalytics(){
+ document.getElementById('riskList').innerHTML=students.map(s=>{
+  let p=pct(s),st=getStatus(p);
+  return `<div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800"><div class="flex justify-between items-center"><div><b>${s.name}</b><div class="text-xs text-slate-500">${s.reg}</div></div><span class="badge ${st[1]}">${st[0]} · ${p}%</span></div><div class="progress mt-3"><span style="width:${p}%;background:${p>=75?'#22c55e':p>=65?'#f59e0b':'#ef4444'}"></span></div></div>`;
+ }).join('');
+ let sel=document.getElementById('recoveryStudent');
+ let prev=sel.value;
+ sel.innerHTML=students.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+ if(students.some(s=>String(s.id)===prev))sel.value=prev;
+ calculateRecovery();
+}
+function calculateRecovery(){
+ let s=students.find(x=>String(x.id)===document.getElementById('recoveryStudent').value)||students[0];if(!s)return;
+ let p=pct(s),x=0;
+ if(p>=75){document.getElementById('recoveryBox').innerHTML='<b class="text-emerald-600 text-lg">✓ Safe</b><p class="text-sm mt-2">Current attendance is already above 75%.</p>';return}
+ while((s.attended+x)/(s.conducted+x)*100<75&&x<1000)x++;
+ document.getElementById('recoveryBox').innerHTML=`<div class="text-xs text-slate-500">Current attendance</div><div class="text-3xl font-extrabold mt-1">${p}%</div><div class="mt-4 text-blue-600 font-extrabold text-2xl">${x} classes</div><p class="text-sm mt-1">Attend the next <b>${x} classes continuously</b> to reach 75%.</p>`;
+}
+function quickView(id){let s=students.find(x=>x.id===id);toast(`${s.name}: ${pct(s)}% attendance (${s.attended}/${s.conducted})`)}
+
+function openStudentModal(){resetStudentForm();document.getElementById('studentModal').classList.add('show')}
+function closeStudentModal(){document.getElementById('studentModal').classList.remove('show')}
+function resetStudentForm(){
+ document.getElementById('newName').value='';
+ document.getElementById('newReg').value='';
+ document.getElementById('newDept').value='B.Sc Computer Science';
+ document.getElementById('newClasses').value='50';
+ document.getElementById('newAttended').value='40';
+}
+function addStudent(){
+ let name=document.getElementById('newName').value.trim(),reg=document.getElementById('newReg').value.trim(),dept=document.getElementById('newDept').value.trim(),c=+document.getElementById('newClasses').value,a=+document.getElementById('newAttended').value;
+ if(!name||!reg||!dept||c<1||a<0||a>c){toast('Please enter valid student details');return}
+ if(students.some(s=>s.reg.toLowerCase()===reg.toLowerCase())){toast('Register number already exists');return}
+ students.push({id:Date.now(),name,reg,dept,conducted:c,attended:a});save();closeStudentModal();
+ renderStudents();renderDashboard();renderAnalytics();renderMark();renderHistory();toast('Student added successfully');
+}
+function deleteStudent(id){
+ let s=students.find(x=>x.id===id);if(!s)return;
+ if(!confirm(`Remove ${s.name} and all their attendance history? This cannot be undone.`))return;
+ students=students.filter(x=>x.id!==id);
+ history=history.filter(h=>h.student!==id);
+ delete todayStatus[id];
+ save();renderStudents();renderDashboard();renderMark();renderHistory();renderAnalytics();
+ toast(s.name+' removed');
+}
+
+function renderSubjects(){
+ document.getElementById('subjectTable').innerHTML=subjects.map(sub=>{
+  let count=history.filter(h=>h.subject===sub).length;
+  return `<tr><td><b>${sub}</b></td><td>${count}</td><td><button onclick="deleteSubject('${sub.replace(/'/g,"\\'")}')" class="text-red-600 font-bold">Delete</button></td></tr>`;
+ }).join('')||'<tr><td colspan="3" class="text-center text-slate-500 py-8">No subjects yet. Add one above.</td></tr>';
+}
+function openSubjectModal(){document.getElementById('newSubjectName').value='';document.getElementById('subjectModal').classList.add('show')}
+function closeSubjectModal(){document.getElementById('subjectModal').classList.remove('show')}
+function addSubject(){
+ let name=document.getElementById('newSubjectName').value.trim();
+ if(!name){toast('Please enter a subject name');return}
+ if(subjects.some(s=>s.toLowerCase()===name.toLowerCase())){toast('This subject already exists');return}
+ subjects.push(name);save();closeSubjectModal();
+ renderSubjects();renderDashboard();renderMark();renderHistory();
+ toast('Subject added successfully');
+}
+function deleteSubject(name){
+ if(!confirm(`Remove "${name}" and all its attendance history? This cannot be undone.`))return;
+ let removedRecs=history.filter(h=>h.subject===name);
+ removedRecs.forEach(h=>{
+  let s=students.find(x=>x.id===h.student);
+  if(s){s.conducted=Math.max(0,s.conducted-1);if(h.status==='Present')s.attended=Math.max(0,s.attended-1)}
+ });
+ history=history.filter(h=>h.subject!==name);
+ subjects=subjects.filter(s=>s!==name);
+ save();renderSubjects();renderDashboard();renderMark();renderHistory();renderStudents();renderAnalytics();
+ toast(name+' removed');
+}
+
+window.addEventListener('load',()=>{renderDashboard();renderStudents();renderSubjects();renderMark();renderHistory();renderAnalytics();if(dupCleaned)toast(dupCleaned+' duplicate attendance entries removed')});
+
+function renderReport(){
+ document.getElementById('reportHead').innerHTML=`<tr><th>Student</th><th>Register No.</th><th>Department</th>${subjects.map(sub=>`<th>${sub}</th>`).join('')}<th>Overall %</th><th>Status</th></tr>`;
+ document.getElementById('reportTable').innerHTML=students.map(s=>{
+  let subjCells=subjects.map(sub=>{
+   let has=history.some(h=>h.student===s.id&&h.subject===sub);
+   return `<td>${has?pctForSubject(s,sub)+'%':'—'}</td>`;
+  }).join('');
+  let st=getStatus(pct(s));
+  return `<tr><td><b>${s.name}</b></td><td>${s.reg}</td><td>${s.dept}</td>${subjCells}<td><b>${pct(s)}%</b></td><td><span class="badge ${st[1]}">${st[0]}</span></td></tr>`;
+ }).join('')||`<tr><td colspan="${4+subjects.length}" class="text-center text-slate-500 py-8">No students yet.</td></tr>`;
+}
+function exportReportExcel(){
+ if(!students.length){toast('Add students first');return}
+ let header=['Student','Register No.','Department',...subjects,'Overall %','Status'];
+ let rows=students.map(s=>{
+  let subjVals=subjects.map(sub=>history.some(h=>h.student===s.id&&h.subject===sub)?pctForSubject(s,sub):'');
+  return [s.name,s.reg,s.dept,...subjVals,pct(s),getStatus(pct(s))[0]];
+ });
+ let ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+ ws['!cols']=header.map(()=>({wch:18}));
+ let wb=XLSX.utils.book_new();
+ XLSX.utils.book_append_sheet(wb,ws,'Attendance Report');
+ XLSX.writeFile(wb,'SmartAttend_Report_'+today()+'.xlsx');
+ toast('Excel file downloaded');
+}
+</script>
+
+<footer class="mt-12 py-6 border-t border-slate-200 dark:border-slate-800 text-center text-sm text-slate-600 dark:text-slate-400">
+ <p>© 2026 SmartAttend AI. Designed by <span class="font-semibold text-slate-800 dark:text-slate-200">Bharathraj</span></p>
+</footer>
+
+</body>
+</html>
