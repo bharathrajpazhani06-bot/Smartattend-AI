@@ -1,5 +1,5 @@
 # Smartattend-AI
-# 🎓 SmartAttend AI — Student Attendance Tracker & Analytics
+# 🎓 SmartAttend AI — Student Attendance Tracker & Analytics And Insights 
 
 An intelligent, zero-backend Single Page Application (SPA) designed to record, monitor, and analyze student attendance with proactive risk classification and an attendance recovery simulator.
 
