@@ -38,5 +38,4 @@ An intelligent, zero-backend Single Page Application (SPA) designed to record, m
 
 * **Developer**: P. Bharathraj
 * **Department**: B.Sc Computer Science
-* **Institution**: Thiru A. Govindasamy Government Arts College, Tindivanam
-* 
+* **Institution**: Thiru A. Govindasamy Government Arts College, Tindivanam 604307
